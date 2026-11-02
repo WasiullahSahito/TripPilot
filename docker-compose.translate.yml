@@ -1,0 +1,20 @@
+services:
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    restart: unless-stopped
+    command:
+      - --host
+      - 0.0.0.0
+      - --load-only
+      - en,ar,fr,es,de,ru,tr,hi,zh,ja
+      - --char-limit
+      - "5000"
+      - --threads
+      - "2"
+    ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      - libretranslate-models:/home/libretranslate/.local
+
+volumes:
+  libretranslate-models:

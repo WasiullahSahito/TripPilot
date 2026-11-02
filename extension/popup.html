@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8" /><title>TripPilot assistant</title><link rel="stylesheet" href="styles.css" /></head>
+<body>
+  <main>
+    <h1>TripPilot assistant</h1>
+    <p class="notice">You stay in control: nothing is filled until you tick it, and nothing is ever submitted. CAPTCHAs, consent, identity checks and payment are always yours to complete on the official site.</p>
+
+    <h2>1. Your data</h2>
+    <p id="data-info" class="muted"></p>
+    <div class="bar">
+      <label class="muted"><span>Load export file: </span><input id="file" type="file" accept="application/json,.json" /></label>
+      <button id="clear" type="button">Remove my data</button>
+    </div>
+
+    <h2>2. This page</h2>
+    <div class="bar">
+      <button id="scan" class="primary" type="button">Scan this page</button>
+      <label id="allow-once-row" class="muted" hidden><input id="allow-once" type="checkbox" /> Use this site once</label>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">Ready.</div>
+    <div id="results"></div>
+
+    <div id="actions" hidden>
+      <h2>3. Fill</h2>
+      <div class="bar">
+        <button id="fill" class="accent" type="button">Fill ticked fields</button>
+        <button id="stop" type="button" hidden>Stop</button>
+        <label class="muted"><input id="overwrite" type="checkbox" /> Replace existing values</label>
+      </div>
+      <div id="report" aria-live="polite"></div>
+    </div>
+
+    <p class="muted"><button id="options" type="button">Allowed sites &amp; settings</button></p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

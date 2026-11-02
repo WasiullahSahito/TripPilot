@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8" /><title>TripPilot assistant settings</title><link rel="stylesheet" href="styles.css" /></head>
+<body>
+  <main>
+    <h1>TripPilot assistant settings</h1>
+
+    <h2>Allowed sites</h2>
+    <p class="muted">If you list sites here, the assistant refuses to scan any other site unless you tick "Use this site once". Leave it empty to be asked on every site. Only use the assistant on sites whose terms allow assisted form entry.</p>
+    <ul id="hosts" class="hosts"></ul>
+    <form id="add-form" class="bar">
+      <label for="host" class="muted">Hostname</label>
+      <input id="host" class="val" style="max-width:260px" placeholder="apply.example.gov" autocomplete="off" />
+      <button type="submit">Add</button>
+    </form>
+    <p id="msg" class="muted" role="status" aria-live="polite"></p>
+
+    <h2>Site adapters</h2>
+    <p class="muted">Adapters pin fields to your data more reliably than label matching. Only the local test form is bundled; no real government or embassy portal is, because none has been verified.</p>
+    <ul id="adapters" class="hosts"></ul>
+
+    <h2>Sites you taught</h2>
+    <p class="muted">Fields you pinned with "Teach this site". Only a field's id or name is stored (never your personal data), and you can share these with someone using the same site.</p>
+    <div id="pins"></div>
+    <div class="bar">
+      <button id="pins-export" type="button">Export pins</button>
+      <label class="muted">Import pins: <input id="pins-import" type="file" accept="application/json,.json" /></label>
+    </div>
+
+    <h2>Your data</h2>
+    <p class="muted">Exported details are kept in memory only, expire after 30 minutes and are never readable by web pages.</p>
+    <button id="wipe" type="button">Remove loaded data now</button>
+
+    <h2>What the assistant never does</h2>
+    <ul class="hosts muted">
+      <li>It never submits a form or clicks any button or link.</li>
+      <li>It never fills password, file-upload, card, security-code, one-time-code or CAPTCHA fields.</li>
+      <li>It never runs on a page until you press "Scan this page".</li>
+      <li>It makes no network requests of its own and has no access to your browsing history.</li>
+    </ul>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>
