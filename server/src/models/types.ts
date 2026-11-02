@@ -128,3 +128,45 @@ export interface AuditEntry {
   targetId: string | null
   meta: Record<string, string | number | boolean>
 }
+
+export type OrderKind = 'flight' | 'hotel' | 'insurance'
+/**
+ * awaiting_payment -> fulfilling -> fulfilled, or -> refunded (provider failed, customer refunded automatically),
+ * or needs_attention (paid but neither fulfilled nor refunded: a person must resolve it), or expired (never paid).
+ */
+export type OrderStatus = 'awaiting_payment' | 'fulfilling' | 'fulfilled' | 'refunded' | 'needs_attention' | 'expired'
+
+/** A purchase made through TripPilot. References and tickets are only ever values returned by the provider. */
+export interface Order {
+  id: string
+  userId: string
+  kind: OrderKind
+  status: OrderStatus
+  /** Payment gateway that took the money: stripe (international cards) or safepay (Pakistan). */
+  gateway: 'stripe' | 'safepay'
+  provider: string
+  offerId: string
+  title: string
+  startDate: string
+  endDate: string | null
+  /** What the customer pays, in minor units (cents). Includes our fee. */
+  amountMinor: number
+  /** Our fee inside amountMinor. */
+  feeMinor: number
+  currency: string
+  paymentSessionId: string | null
+  paymentRef: string | null
+  providerOrderId: string | null
+  /** Booking reference / policy number issued by the provider. */
+  reference: string | null
+  /** E-ticket numbers or similar documents issued by the provider (may be empty while being issued). */
+  tickets: string[]
+  /** The Booking row created once fulfilled. */
+  bookingId: string | null
+  /** Short, non-personal failure note. */
+  note: string | null
+  /** Travellers, contact and provider price snapshot, encrypted with AES-256-GCM. */
+  dataEnc: string
+  createdAt: string
+  updatedAt: string
+}

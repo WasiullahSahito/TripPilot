@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import type { Appointment, AuditEntry, Booking, Expense, Profile, StoredDocument, Trip, User, VisaApplication } from './types.ts'
+import type { Appointment, AuditEntry, Booking, Expense, Order, Profile, StoredDocument, Trip, User, VisaApplication } from './types.ts'
 
 /**
  * Persistence boundary. The shipped implementation is a JSON-file store for local
@@ -40,6 +40,13 @@ export interface Store {
   getExpense(userId: string, id: string): Promise<Expense | undefined>
   saveExpense(e: Expense): Promise<void>
   deleteExpense(userId: string, id: string): Promise<boolean>
+  listOrders(userId: string): Promise<Order[]>
+  getOrder(userId: string, id: string): Promise<Order | undefined>
+  /** Webhooks arrive without a session, so they look orders up by id alone. */
+  getOrderById(id: string): Promise<Order | undefined>
+  saveOrder(order: Order): Promise<void>
+  /** Atomically moves an order between statuses; false if it was not in `from` (someone else got there first). */
+  claimOrder(id: string, from: Order['status'], to: Order['status']): Promise<boolean>
   /** Aggregate counts for the admin dashboard. */
   stats(): Promise<StoreStats>
   listUsers(opts: { query?: string; limit: number; offset: number }): Promise<{ users: User[]; total: number }>
@@ -70,11 +77,12 @@ interface Data {
   bookings: Booking[]
   appointments: Appointment[]
   expenses: Expense[]
+  orders: Order[]
   audit: AuditEntry[]
 }
 
 export class JsonStore implements Store {
-  private data: Data = { users: [], profiles: [], trips: [], applications: [], documents: [], bookings: [], appointments: [], expenses: [], audit: [] }
+  private data: Data = { users: [], profiles: [], trips: [], applications: [], documents: [], bookings: [], appointments: [], expenses: [], orders: [], audit: [] }
 
   /** Pass no path for a purely in-memory store (used in tests). */
   private readonly filePath?: string
@@ -145,6 +153,7 @@ export class JsonStore implements Store {
     this.data.bookings = this.data.bookings.filter((b) => b.userId !== userId)
     this.data.appointments = this.data.appointments.filter((a) => a.userId !== userId)
     this.data.expenses = this.data.expenses.filter((e) => e.userId !== userId)
+    this.data.orders = this.data.orders.filter((o) => o.userId !== userId)
     this.persist()
   }
   async listApplications(userId: string) {
@@ -237,6 +246,29 @@ export class JsonStore implements Store {
     this.data.expenses = this.data.expenses.filter((e) => !(e.userId === userId && e.id === id))
     this.persist()
     return this.data.expenses.length < before
+  }
+  async listOrders(userId: string) {
+    return this.data.orders.filter((o) => o.userId === userId).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  }
+  async getOrder(userId: string, id: string) {
+    return this.data.orders.find((o) => o.userId === userId && o.id === id)
+  }
+  async getOrderById(id: string) {
+    return this.data.orders.find((o) => o.id === id)
+  }
+  async saveOrder(order: Order) {
+    const i = this.data.orders.findIndex((o) => o.id === order.id)
+    if (i >= 0) this.data.orders[i] = order
+    else this.data.orders.push(order)
+    this.persist()
+  }
+  async claimOrder(id: string, from: Order['status'], to: Order['status']) {
+    const o = this.data.orders.find((x) => x.id === id)
+    if (!o || o.status !== from) return false
+    o.status = to
+    o.updatedAt = new Date().toISOString()
+    this.persist()
+    return true
   }
   async stats(): Promise<StoreStats> {
     return {

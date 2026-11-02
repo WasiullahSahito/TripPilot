@@ -1,3 +1,4 @@
+import { BookStays } from '@/features/checkout/book-here'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Accessibility, Building2, ExternalLink, List, Map as MapIcon, MapPin, Star, Wifi } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
@@ -134,9 +135,11 @@ export default function HotelsPage() {
       <header>
         <h1 className="text-2xl font-semibold">Hotels</h1>
         <p className="mt-1 text-sm text-ink-soft">
-          Find real places to stay, then check live prices with a booking partner. TripPilot doesn’t take bookings or payments.
+          Find real places to stay, then check live prices with a booking partner. Rooms you can book directly appear above when a booking provider is connected; everything else links out to partners.
         </p>
       </header>
+
+      <BookStays />
 
       <Card className="p-5">
         <form onSubmit={onSubmit} noValidate aria-label="Hotel search" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">

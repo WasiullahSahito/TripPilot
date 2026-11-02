@@ -21,6 +21,12 @@ import { adminRoutes } from './routes/admin.ts'
 import { cronRoutes } from './routes/cron.ts'
 import { uploadRoutes } from './routes/uploads.ts'
 import { accountRoutes, profileRoutes, tripRoutes } from './routes/resources.ts'
+import { commerce } from './integrations/commerce.ts'
+import { duffelFlights, duffelStays } from './integrations/duffel.ts'
+import { hellosafeInsurance } from './integrations/hellosafe.ts'
+import { stripeGateway } from './integrations/stripe.ts'
+import { safepayGateway } from './integrations/safepay.ts'
+import { commerceRoutes, paymentWebhook } from './routes/commerce.ts'
 import { sessionGuard } from './middleware/session-guard.ts'
 
 /** Allows the browser app (and only it) to call the API from another origin, e.g. localhost:5173 -> localhost:4000. */
@@ -43,11 +49,20 @@ export const cors: RequestHandler = (req, res, next) => {
 export function createApp(store: Store, opts: { uploadDir?: string; blobs?: BlobStore } = {}) {
   const blobs = opts.blobs ?? new DiskBlobStore(opts.uploadDir ?? env.uploadDir)
   if (env.travelpayoutsToken && !providers.flights) providers.flights = travelpayoutsFlights(env.travelpayoutsToken, env.travelpayoutsMarker)
+  if (env.stripeSecretKey && !commerce.gateways.stripe) commerce.gateways.stripe = stripeGateway(env.stripeSecretKey, env.stripeWebhookSecret)
+  if (env.safepayApiKey && !commerce.gateways.safepay) {
+    commerce.gateways.safepay = safepayGateway({ apiKey: env.safepayApiKey, secretKey: env.safepaySecretKey, webhookSecret: env.safepayWebhookSecret, env: env.safepayEnv })
+  }
+  if (env.atlasKeyId && env.atlasSigningSecret && !commerce.insuranceReferral) commerce.insuranceReferral = hellosafeInsurance(env.atlasKeyId, env.atlasSigningSecret)
+  if (env.duffelToken && !commerce.flights) commerce.flights = duffelFlights(env.duffelToken)
+  if (env.duffelToken && !commerce.hotels) commerce.hotels = duffelStays(env.duffelToken)
   const app = express()
   app.disable('x-powered-by')
   if (env.isProd) app.set('trust proxy', 1) // Vercel sits in front: needed for per-client rate limits
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }))
   app.use('/api', cors)
+  // Before express.json(): Stripe's signature covers the raw bytes. Authenticated by that signature, not a cookie.
+  app.post(['/api/commerce/webhook', '/api/commerce/webhook/:gateway'], ...paymentWebhook(store))
   app.use(express.json({ limit: '100kb' }))
   app.use(cookieParser())
   app.use('/api', apiLimiter, originCheck)
@@ -66,6 +81,7 @@ export function createApp(store: Store, opts: { uploadDir?: string; blobs?: Blob
   app.post('/api/flights/search', requireAuth, async (req, res) => {
     res.json(await requireProvider('flights').search(req.body))
   })
+  app.use('/api/commerce', commerceRoutes(store))
   app.use('/api/hotels', hotelRoutes())
   app.use('/api/expenses', expenseRoutes(store))
   app.use('/api/translate', translateRoutes())

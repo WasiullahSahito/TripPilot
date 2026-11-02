@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card'
 import { Field, Input, Select } from '@/components/ui/field'
 import { BookingRow } from '@/features/bookings/booking-row'
 import { bookingsApi, type BookingDto } from '@/features/bookings/bookings-api'
+import { BookInsurance } from '@/features/checkout/book-here'
 import { PartnerRow } from '@/features/affiliate/partner-links'
 
 const policySchema = z
@@ -66,6 +67,8 @@ export default function InsurancePage() {
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Travel insurance</h1>
         <p className="mt-2 max-w-2xl text-sm text-ink-soft">Check current options with an insurance partner, then keep your policy details and documents alongside your travel plans.</p>
       </header>
+
+      <BookInsurance />
 
       <Card className="space-y-4 border-accent-200 bg-accent-50/40 p-5">
         <div>

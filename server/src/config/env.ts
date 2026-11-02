@@ -39,5 +39,18 @@ export const env = {
   overpassUrl: process.env.OVERPASS_URL ?? 'https://overpass-api.de/api/interpreter',
   travelpayoutsToken: process.env.TRAVELPAYOUTS_TOKEN,
   travelpayoutsMarker: process.env.TRAVELPAYOUTS_MARKER,
+  // Commerce (real booking + payment). Everything is optional: with no keys the checkout endpoints answer 501.
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY || undefined,
+  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || undefined,
+  // Safepay (Pakistan). Keys come from the Safepay merchant dashboard; SAFEPAY_ENV=production for live.
+  safepayApiKey: process.env.SAFEPAY_API_KEY || undefined,
+  safepaySecretKey: process.env.SAFEPAY_SECRET_KEY || undefined,
+  safepayWebhookSecret: process.env.SAFEPAY_WEBHOOK_SECRET || undefined,
+  safepayEnv: process.env.SAFEPAY_ENV === 'production' ? ('production' as const) : ('sandbox' as const),
+  duffelToken: process.env.DUFFEL_ACCESS_TOKEN || undefined,
+  atlasKeyId: process.env.ATLAS_KEY_ID || undefined,
+  atlasSigningSecret: process.env.ATLAS_SIGNING_SECRET || undefined,
+  // Our fee on top of the provider price, charged to the customer in the same payment. 0-20 %.
+  serviceFeePercent: Math.min(Math.max(Number(process.env.SERVICE_FEE_PERCENT ?? 0) || 0, 0), 20),
   bcryptCost: process.env.NODE_ENV === 'test' ? 4 : 12,
 }

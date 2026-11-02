@@ -1,3 +1,4 @@
+import { Link } from 'react-router'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -118,7 +119,7 @@ export default function BookingsPage() {
     <div className="mx-auto max-w-4xl space-y-8 px-4 py-8">
       <header>
         <h1 className="text-2xl font-semibold">Booking history</h1>
-        <p className="mt-1 text-sm text-ink-soft">Keep the flight, stay and insurance details you recorded with their provider.</p>
+        <p className="mt-1 text-sm text-ink-soft">Keep the flight, stay and insurance details you recorded with their provider. Purchases made here are under <Link className="underline" to="/app/orders">Orders</Link>.</p>
       </header>
 
       {handoff && (

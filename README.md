@@ -28,7 +28,7 @@ A self-service travel and visa preparation platform: guided visa applications, f
 | Document package: drag-and-drop ordering, optional photo size reduction | **Working** (uploaded PDFs are included unchanged: they cannot be recompressed here) |
 | Visa guidance review tracking (who checked what, when) and an official-link checker | **Working**; **no destination has been reviewed by a person yet** |
 | Browser assistant: teach it a site's fields yourself; Web Store package and listing text ready | **Working**; publishing needs your Chrome developer account; no real embassy adapters are bundled |
-| Real booking, payment, ticketing, insurance purchase and quotes | **Not built**: needs licensed providers or approved partner APIs. TripPilot links out and records what you book. |
+| Real booking, payment and ticketing: flights (Duffel), stays (Duffel Stays), insurance (provider adapter), card payment (Stripe for international customers, Safepay for customers in Pakistan), automatic refund if the provider fails, orders page | **Written and tested against mocks only**; needs your Duffel account plus Stripe and/or Safepay (test keys first); **the Safepay adapter is unverified against Safepay's docs**. **Insurance has no provider adapter yet**: see docs/COMMERCE.md. Without keys, the site keeps linking out to partners. |
 | Translation | Self-hosted **LibreTranslate**, configured without a paid API key; run locally with Python (Docker optional) or use an HTTPS-hosted instance in production |
 | Browser assistant (Chrome extension) | **Working**, optional; build and load it yourself |
 | Supabase (Postgres + private Storage) and Vercel deployment | **Written, not yet verified** against live projects |

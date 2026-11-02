@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { DatabaseError } from './database-error.ts'
 import type { Store, StoreStats } from './store.ts'
-import type { Appointment, AuditEntry, Booking, Expense, Profile, StoredDocument, Trip, User, VisaApplication } from './types.ts'
+import type { Appointment, AuditEntry, Booking, Expense, Order, Profile, StoredDocument, Trip, User, VisaApplication } from './types.ts'
 
 /**
  * PostgreSQL (Supabase) implementation of Store. The server connects with the service-role key, which
@@ -103,6 +103,21 @@ const expenseTo = (e: Expense): Row => ({
   currency: e.currency, spent_on: e.spentOn, status: e.status, created_at: e.createdAt,
 })
 
+const orderFrom = (r: Row): Order => ({
+  id: s(r.id), userId: s(r.user_id), kind: r.kind as Order['kind'], status: r.status as Order['status'], gateway: r.gateway as Order['gateway'], provider: s(r.provider),
+  offerId: s(r.offer_id), title: s(r.title), startDate: s(r.start_date), endDate: sn(r.end_date), amountMinor: Number(r.amount_minor),
+  feeMinor: Number(r.fee_minor), currency: s(r.currency), paymentSessionId: sn(r.payment_session_id), paymentRef: sn(r.payment_ref),
+  providerOrderId: sn(r.provider_order_id), reference: sn(r.reference), tickets: (r.tickets as string[]) ?? [], bookingId: sn(r.booking_id),
+  note: sn(r.note), dataEnc: s(r.data_enc), createdAt: new Date(s(r.created_at)).toISOString(), updatedAt: new Date(s(r.updated_at)).toISOString(),
+})
+const orderTo = (o: Order): Row => ({
+  id: o.id, user_id: o.userId, kind: o.kind, status: o.status, gateway: o.gateway, provider: o.provider, offer_id: o.offerId, title: o.title,
+  start_date: o.startDate, end_date: o.endDate, amount_minor: o.amountMinor, fee_minor: o.feeMinor, currency: o.currency,
+  payment_session_id: o.paymentSessionId, payment_ref: o.paymentRef, provider_order_id: o.providerOrderId,
+  reference: o.reference, tickets: o.tickets, booking_id: o.bookingId, note: o.note, data_enc: o.dataEnc,
+  created_at: o.createdAt, updated_at: o.updatedAt,
+})
+
 export class SupabaseStore implements Store {
   private readonly db: SupabaseClient
   constructor(client: SupabaseClient) {
@@ -179,8 +194,18 @@ export class SupabaseStore implements Store {
   saveExpense = (e: Expense) => this.upsert('expenses', expenseTo(e))
   deleteExpense = (userId: string, id: string) => this.remove('expenses', { user_id: userId, id })
 
+  listOrders = (userId: string) => this.many('orders', { user_id: userId }, orderFrom, { col: 'created_at', asc: false })
+  getOrder = (userId: string, id: string) => this.one('orders', { user_id: userId, id }, orderFrom)
+  getOrderById = (id: string) => this.one('orders', { id }, orderFrom)
+  saveOrder = (o: Order) => this.upsert('orders', orderTo(o))
+  async claimOrder(id: string, from: Order['status'], to: Order['status']) {
+    // One UPDATE ... WHERE status = from: of two concurrent callers only one gets a row back.
+    const rows = ok(await this.db.from('orders').update({ status: to, updated_at: new Date().toISOString() }).eq('id', id).eq('status', from).select('id')) as Row[]
+    return rows.length > 0
+  }
+
   async deleteUserData(userId: string) {
-    for (const t of ['expenses', 'documents', 'appointments', 'bookings', 'visa_applications', 'trips', 'profiles']) {
+    for (const t of ['orders', 'expenses', 'documents', 'appointments', 'bookings', 'visa_applications', 'trips', 'profiles']) {
       await this.remove(t, { user_id: userId })
     }
     await this.remove('users', { id: userId })

@@ -16,6 +16,7 @@ export const ROUTES = {
     appointments: '/app/appointments',
     documents: '/app/documents',
     bookings: '/app/bookings',
+    orders: '/app/orders',
     budget: '/app/budget',
     extras: '/app/extras',
     translate: '/app/translate',

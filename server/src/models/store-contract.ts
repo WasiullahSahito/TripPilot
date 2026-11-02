@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import type { Store } from './store.ts'
-import type { Appointment, AuditEntry, Booking, Expense, StoredDocument, Trip, User, VisaApplication } from './types.ts'
+import type { Appointment, AuditEntry, Booking, Expense, Order, StoredDocument, Trip, User, VisaApplication } from './types.ts'
 
 const now = () => new Date().toISOString()
 
@@ -209,6 +209,32 @@ export function storeContract(name: string, make: () => Store, opts: { skip?: bo
       expect((await store.getProfile(a.id))?.retentionDays).toBe(60)
       await store.deleteUserData(a.id)
       await store.deleteUserData(b.id)
+    })
+
+    it('stores orders, isolates users and lets only one caller claim a status change', async () => {
+      const store = make()
+      const a = user(), b = user()
+      await store.saveUser(a)
+      await store.saveUser(b)
+      const order: Order = {
+        id: randomUUID(), userId: a.id, kind: 'flight', status: 'awaiting_payment', gateway: 'stripe', provider: 'duffel', offerId: 'off_1', title: 'Flight',
+        startDate: '2027-03-01', endDate: null, amountMinor: 55000, feeMinor: 5000, currency: 'USD', paymentSessionId: `cs_${randomUUID()}`,
+        paymentRef: null, providerOrderId: null, reference: null, tickets: [], bookingId: null, note: null, dataEnc: 'v1.x.y.z',
+        createdAt: now(), updatedAt: now(),
+      }
+      await store.saveOrder(order)
+      expect((await store.getOrder(a.id, order.id))?.amountMinor).toBe(55000)
+      expect((await store.getOrderById(order.id))?.userId).toBe(a.id)
+      expect(await store.getOrder(b.id, order.id)).toBeUndefined()
+      expect(await store.listOrders(b.id)).toEqual([])
+      expect(await store.claimOrder(order.id, 'awaiting_payment', 'fulfilling')).toBe(true)
+      expect(await store.claimOrder(order.id, 'awaiting_payment', 'fulfilling')).toBe(false)
+      await store.saveOrder({ ...(await store.getOrderById(order.id))!, status: 'fulfilled', reference: 'ABC123', providerOrderId: 'o1', tickets: ['057123'] })
+      const done = (await store.listOrders(a.id))[0]!
+      expect(done).toMatchObject({ status: 'fulfilled', reference: 'ABC123', tickets: ['057123'] })
+      await store.deleteUserData(a.id)
+      await store.deleteUserData(b.id)
+      expect(await store.getOrderById(order.id)).toBeUndefined()
     })
   })
 }

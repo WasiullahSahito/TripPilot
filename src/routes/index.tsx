@@ -26,6 +26,8 @@ const PrivacyPage = lazy(() => import('@/features/legal/legal-pages').then((m) =
 const TermsPage = lazy(() => import('@/features/legal/legal-pages').then((m) => ({ default: m.TermsPage })))
 const NotificationsPage = lazy(() => import('@/features/notifications/notifications-page'))
 const AssistantPage = lazy(() => import('@/features/automation/assistant-page'))
+const OrdersPage = lazy(() => import('@/features/checkout/orders-page').then((m) => ({ default: m.OrdersPage })))
+const OrderPage = lazy(() => import('@/features/checkout/orders-page'))
 const BudgetPage = lazy(() => import('@/features/budget/budget-page'))
 const DashboardPage = lazy(() => import('@/features/dashboard/dashboard-page'))
 const SettingsPage = lazy(() => import('@/features/profile/settings-page'))
@@ -82,6 +84,8 @@ export const router = createBrowserRouter([
       { path: 'appointments', element: lazyPage(<AppointmentsPage />) },
       { path: 'documents', element: lazyPage(<DocumentsPage />) },
       { path: 'bookings', element: lazyPage(<BookingsPage />) },
+      { path: 'orders', element: lazyPage(<OrdersPage />) },
+      { path: 'orders/:id', element: lazyPage(<OrderPage />) },
       { path: 'budget', element: lazyPage(<BudgetPage />) },
       { path: 'extras', element: lazyPage(<ExtrasPage />) },
       { path: 'translate', element: lazyPage(<TranslatePage />) },

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Field, Input, Select } from '@/components/ui/field'
 import { flightProvider, type FlightLeg, type FlightOffer, type FlightSearchParams, type FlightSearchResult } from '@/services/flights'
+import { BookFlights } from '@/features/checkout/book-here'
 import { PartnerRow } from '@/features/affiliate/partner-links'
 import { airportLabel, airports, findAirport } from '@/services/travel/reference'
 import { cheapestFare, filterFlights, formatDuration, sortFlights, timeOf, type FlightSort } from './filter'
@@ -159,6 +160,8 @@ export default function FlightsPage() {
         <h1 className="text-2xl font-semibold">Flights</h1>
         <p className="mt-1 text-sm text-ink-soft">Search provider fare data. Confirm current price, availability and conditions with the airline or booking partner.</p>
       </header>
+
+      <BookFlights />
 
       <Card className="p-5">
         <form onSubmit={onSubmit} noValidate aria-label="Flight search" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
