@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { NavLink, Outlet, useNavigate } from 'react-router'
 import { useAuth } from '@/features/auth/auth-context'
 import { Logo } from '@/components/shared/logo'
+import { SeoManager } from '@/components/shared/seo-manager'
 import { ROUTES } from '@/config/routes'
 import { cn } from '@/lib/utils'
 
@@ -59,6 +60,7 @@ export function AppLayout() {
         </nav>
       </aside>
       <div className="min-w-0">
+        <SeoManager />
         <main id="main"><Outlet /></main>
       </div>
     </div>

@@ -2,6 +2,7 @@ import { Menu, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link, Outlet } from 'react-router'
 import { Logo } from '@/components/shared/logo'
+import { SeoManager } from '@/components/shared/seo-manager'
 import { Button } from '@/components/ui/button'
 import { marketingNav } from '@/config/site'
 import { ROUTES } from '@/config/routes'
@@ -58,6 +59,7 @@ export function MarketingLayout() {
         Skip to content
       </a>
       <SiteHeader />
+      <SeoManager />
       <main id="main"><Outlet /></main>
       <SiteFooter />
     </>
