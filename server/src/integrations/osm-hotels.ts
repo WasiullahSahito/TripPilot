@@ -106,6 +106,12 @@ export function parseOverpass(json: unknown, center: { lat: number; lng: number 
   return out.sort((a, b) => a.distanceKm - b.distanceKm).slice(0, limit)
 }
 
+const FALLBACK_SERVERS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+]
+
 // In-memory cache (per server instance): popular cities are fetched once every few hours, not on every search.
 const TTL_MS = 6 * 60 * 60 * 1000
 const MAX_ENTRIES = 200
@@ -117,19 +123,35 @@ export async function fetchDirectory(lat: number, lng: number, radiusM: number):
   const hit = cache.get(key)
   if (hit && Date.now() - hit.at < TTL_MS) return { listings: hit.listings, cached: true }
 
-  let res: Response
-  try {
-    res = await fetch(env.overpassUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'TripPilot/0.1 (travel planning app; hotel directory)' },
-      body: new URLSearchParams({ data: buildQuery(lat, lng, radiusM) }),
-      signal: AbortSignal.timeout(25_000),
-    })
-  } catch {
-    throw new HttpError(502, 'The hotel directory did not respond. Try again in a minute.')
+  // The public Overpass server is often overloaded or refuses cloud IPs, so a configured server is tried first
+  // and community mirrors after it. Only the first non-OK status is remembered for the error message.
+  const body = new URLSearchParams({ data: buildQuery(lat, lng, radiusM) })
+  const servers = [env.overpassUrl, ...FALLBACK_SERVERS.filter((u) => u !== env.overpassUrl)]
+  let res: Response | undefined
+  let failure = 0
+  for (const [i, url] of servers.entries()) {
+    try {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'TripPilot/0.1 (travel planning app; hotel directory)' },
+        body,
+        signal: AbortSignal.timeout(i === servers.length - 1 ? 15_000 : 9_000),
+      })
+      if (r.ok) {
+        res = r
+        break
+      }
+      failure ||= r.status
+      console.warn(`[hotels] Overpass ${new URL(url).host} answered ${r.status}`)
+    } catch {
+      console.warn(`[hotels] Overpass ${new URL(url).host} did not respond`)
+    }
   }
-  if (res.status === 429 || res.status === 504) throw new HttpError(503, 'The hotel directory is busy. Try again in a minute.')
-  if (!res.ok) throw new HttpError(502, 'The hotel directory returned an error.')
+  if (!res) {
+    if (failure === 0) throw new HttpError(502, 'The hotel directory did not respond. Try again in a minute.')
+    if (failure === 429 || failure === 504) throw new HttpError(503, 'The hotel directory is busy. Try again in a minute.')
+    throw new HttpError(502, 'The hotel directory returned an error.')
+  }
 
   const listings = parseOverpass(await res.json().catch(() => null), { lat, lng })
   if (cache.size >= MAX_ENTRIES) cache.delete(cache.keys().next().value!)

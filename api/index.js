@@ -1039,6 +1039,11 @@ function parseOverpass(json, center, limit = 120) {
   }
   return out.sort((a, b) => a.distanceKm - b.distanceKm).slice(0, limit);
 }
+var FALLBACK_SERVERS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter"
+];
 var TTL_MS = 6 * 60 * 60 * 1e3;
 var MAX_ENTRIES = 200;
 var cache = /* @__PURE__ */ new Map();
@@ -1046,19 +1051,33 @@ async function fetchDirectory(lat, lng, radiusM) {
   const key2 = `${lat.toFixed(2)},${lng.toFixed(2)},${radiusM}`;
   const hit = cache.get(key2);
   if (hit && Date.now() - hit.at < TTL_MS) return { listings: hit.listings, cached: true };
+  const body = new URLSearchParams({ data: buildQuery(lat, lng, radiusM) });
+  const servers = [env.overpassUrl, ...FALLBACK_SERVERS.filter((u) => u !== env.overpassUrl)];
   let res;
-  try {
-    res = await fetch(env.overpassUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "TripPilot/0.1 (travel planning app; hotel directory)" },
-      body: new URLSearchParams({ data: buildQuery(lat, lng, radiusM) }),
-      signal: AbortSignal.timeout(25e3)
-    });
-  } catch {
-    throw new HttpError(502, "The hotel directory did not respond. Try again in a minute.");
+  let failure = 0;
+  for (const [i, url] of servers.entries()) {
+    try {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "TripPilot/0.1 (travel planning app; hotel directory)" },
+        body,
+        signal: AbortSignal.timeout(i === servers.length - 1 ? 15e3 : 9e3)
+      });
+      if (r.ok) {
+        res = r;
+        break;
+      }
+      failure ||= r.status;
+      console.warn(`[hotels] Overpass ${new URL(url).host} answered ${r.status}`);
+    } catch {
+      console.warn(`[hotels] Overpass ${new URL(url).host} did not respond`);
+    }
   }
-  if (res.status === 429 || res.status === 504) throw new HttpError(503, "The hotel directory is busy. Try again in a minute.");
-  if (!res.ok) throw new HttpError(502, "The hotel directory returned an error.");
+  if (!res) {
+    if (failure === 0) throw new HttpError(502, "The hotel directory did not respond. Try again in a minute.");
+    if (failure === 429 || failure === 504) throw new HttpError(503, "The hotel directory is busy. Try again in a minute.");
+    throw new HttpError(502, "The hotel directory returned an error.");
+  }
   const listings = parseOverpass(await res.json().catch(() => null), { lat, lng });
   if (cache.size >= MAX_ENTRIES) cache.delete(cache.keys().next().value);
   cache.set(key2, { at: Date.now(), listings });
