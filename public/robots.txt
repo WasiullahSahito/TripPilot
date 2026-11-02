@@ -5,4 +5,4 @@ Disallow: /admin
 Disallow: /api/
 
 # Replace with your real site address.
-Sitemap: https://YOUR-DOMAIN.com/sitemap.xml
+Sitemap: https://trip-pilot-tawny.vercel.app/sitemap.xml

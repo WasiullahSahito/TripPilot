@@ -1,33 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <!-- Replace https://YOUR-DOMAIN.com with your real site address (no trailing slash). -->
+  <!-- Replace https://trip-pilot-tawny.vercel.app with your real site address (no trailing slash). -->
   <url>
-    <loc>https://YOUR-DOMAIN.com/</loc>
+    <loc>https://trip-pilot-tawny.vercel.app/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://YOUR-DOMAIN.com/help</loc>
+    <loc>https://trip-pilot-tawny.vercel.app/help</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://YOUR-DOMAIN.com/signup</loc>
+    <loc>https://trip-pilot-tawny.vercel.app/signup</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://YOUR-DOMAIN.com/login</loc>
+    <loc>https://trip-pilot-tawny.vercel.app/login</loc>
     <changefreq>monthly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://YOUR-DOMAIN.com/privacy</loc>
+    <loc>https://trip-pilot-tawny.vercel.app/privacy</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://YOUR-DOMAIN.com/terms</loc>
+    <loc>https://trip-pilot-tawny.vercel.app/terms</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
