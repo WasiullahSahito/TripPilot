@@ -12,7 +12,7 @@ Everything else here runs at $0 during a trial.
 | Piece | Where | Notes |
 |---|---|---|
 | React app | Vercel static hosting | HTTPS and HSTS automatic; headers in `vercel.json` |
-| API (Express) | Vercel serverless function `api/index.ts` | Stateless; rate limits are per instance (see Limitations) |
+| API (Express) | Vercel serverless function `api/index.js` (bundled from `server/src/vercel-entry.ts`) | Stateless; rate limits are per instance (see Limitations) |
 | Database | Supabase Postgres | Schema: `server/migrations/001_init.sql`, `002_remaining_tables.sql` |
 | Files (passports, tickets) | Supabase Storage, **private** bucket `documents` | Opened only via signed URLs valid 5 minutes |
 | OCR | Tesseract.js in the **browser** | Photos are never uploaded for OCR |
@@ -61,7 +61,7 @@ To enable translation from the deployed Vercel API, run LibreTranslate on an alw
 ## Status: what has and hasn't been verified
 
 - Verified by automated tests: the Store contract on the in-memory store, signed-URL redirects and deletion through a fake signing blob store, upload limits, security rules.
-- **Not verified**: the Supabase store and Supabase Storage code against a real project, and the Vercel function entry (`api/index.ts` imports TypeScript with `.ts` extensions; if Vercel's bundler objects, build the server with `tsc`/`esbuild` first). Run the contract test and a preview deploy before trusting either.
+- **Not verified**: the Supabase store and Supabase Storage code against a real project, and the Vercel function entry (a plain `.ts` import failed on Vercel, so the API is now bundled with esbuild into `api/index.js`; run `npm run build:api` and commit it after server changes). Run the contract test and a preview deploy before trusting either.
 
 ## Limitations to plan for
 
