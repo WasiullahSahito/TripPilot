@@ -402,17 +402,35 @@ const resources = {
   },
 } as const
 
+/** First supported language in the device's preference list ("fr-CA" -> fr, "zh-Hans-CN" -> zh), or null. */
+export function detectDeviceLanguage(preferred: readonly string[]): Language | null {
+  for (const tag of preferred) {
+    const base = tag.toLowerCase().split('-')[0]
+    if (LANGUAGES.includes(base as Language)) return base as Language
+  }
+  return null
+}
+
+/** A language the person chose in Settings wins; otherwise follow the phone/browser language; otherwise English. */
 function getInitialLanguage(): Language {
   const saved = window.localStorage.getItem(LANGUAGE_KEY)
   if (saved && LANGUAGES.includes(saved as Language)) return saved as Language
-  return 'en'
+  const preferred = navigator.languages?.length ? navigator.languages : [navigator.language]
+  return detectDeviceLanguage(preferred.filter(Boolean)) ?? 'en'
 }
 
 function applyDocumentLanguage(language: string) {
   const supported = LANGUAGES.includes(language as Language) ? language : 'en'
   document.documentElement.lang = supported
   document.documentElement.dir = supported === 'ar' ? 'rtl' : 'ltr'
-  window.localStorage.setItem(LANGUAGE_KEY, supported)
+}
+
+/** Only an explicit change is remembered, so an auto-detected language keeps following the device until the person picks one. */
+let started = false
+function rememberLanguage(language: string) {
+  applyDocumentLanguage(language)
+  if (!started) return // i18next announces the initial language while starting up; that is not a choice
+  window.localStorage.setItem(LANGUAGE_KEY, LANGUAGES.includes(language as Language) ? language : 'en')
 }
 
 void i18n
@@ -425,8 +443,11 @@ void i18n
     interpolation: { escapeValue: false },
     returnNull: false,
   })
+  .then(() => {
+    started = true
+  })
 
-i18n.on('languageChanged', applyDocumentLanguage)
+i18n.on('languageChanged', rememberLanguage)
 applyDocumentLanguage(i18n.language)
 
 export default i18n

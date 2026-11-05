@@ -1,4 +1,4 @@
-import i18n, { LANGUAGE_KEY } from './i18n'
+import i18n, { detectDeviceLanguage, LANGUAGE_KEY } from './i18n'
 
 describe('application internationalization', () => {
   afterEach(async () => {
@@ -50,5 +50,14 @@ describe('application internationalization', () => {
       expect(document.documentElement.lang).toBe(language)
       expect(document.documentElement.dir).toBe('ltr')
     }
+  })
+
+  it('follows the device language list and falls back to the next supported one', () => {
+    expect(detectDeviceLanguage(['fr-CA', 'en'])).toBe('fr')
+    expect(detectDeviceLanguage(['zh-Hans-CN'])).toBe('zh')
+    expect(detectDeviceLanguage(['ar-SA'])).toBe('ar')
+    expect(detectDeviceLanguage(['ur-PK', 'hi-IN', 'en'])).toBe('hi')
+    expect(detectDeviceLanguage(['ur-PK'])).toBeNull()
+    expect(detectDeviceLanguage([])).toBeNull()
   })
 })
