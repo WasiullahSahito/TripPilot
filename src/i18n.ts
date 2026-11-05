@@ -412,12 +412,34 @@ export function detectDeviceLanguage(preferred: readonly string[]): Language | n
   return null
 }
 
+/** Every language hint a browser exposes (Safari, Firefox, Edge, old Android/in-app WebViews each differ). */
+function collectDeviceLanguages(): string[] {
+  const nav = navigator as Navigator & { userLanguage?: string; browserLanguage?: string; systemLanguage?: string }
+  const tags: (string | undefined)[] = [
+    ...(nav.languages ?? []),
+    nav.language,
+    nav.userLanguage,
+    nav.browserLanguage,
+    nav.systemLanguage,
+  ]
+  try {
+    tags.push(Intl.DateTimeFormat().resolvedOptions().locale)
+  } catch {
+    /* Intl unavailable */
+  }
+  return tags.filter((t): t is string => !!t)
+}
+
 /** A language the person chose in Settings wins; otherwise follow the phone/browser language; otherwise English. */
 function getInitialLanguage(): Language {
-  const saved = window.localStorage.getItem(LANGUAGE_KEY)
+  let saved: string | null = null
+  try {
+    saved = window.localStorage.getItem(LANGUAGE_KEY)
+  } catch {
+    /* storage blocked (private mode / some in-app browsers) */
+  }
   if (saved && LANGUAGES.includes(saved as Language)) return saved as Language
-  const preferred = navigator.languages?.length ? navigator.languages : [navigator.language]
-  return detectDeviceLanguage(preferred.filter(Boolean)) ?? 'en'
+  return detectDeviceLanguage(collectDeviceLanguages()) ?? 'en'
 }
 
 function applyDocumentLanguage(language: string) {
@@ -431,7 +453,11 @@ let started = false
 function rememberLanguage(language: string) {
   applyDocumentLanguage(language)
   if (!started) return // i18next announces the initial language while starting up; that is not a choice
-  window.localStorage.setItem(LANGUAGE_KEY, LANGUAGES.includes(language as Language) ? language : 'en')
+  try {
+    window.localStorage.setItem(LANGUAGE_KEY, LANGUAGES.includes(language as Language) ? language : 'en')
+  } catch {
+    /* storage blocked */
+  }
 }
 
 void i18n
