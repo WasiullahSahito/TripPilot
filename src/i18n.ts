@@ -15,7 +15,8 @@ export const LANGUAGE_LABELS: Record<Language, string> = {
   ja: '日本語',
 }
 type Language = (typeof LANGUAGES)[number]
-const LANGUAGE_KEY = 'trippilot-language'
+// v2: older builds auto-saved "en" on every load, which would wrongly override device detection
+const LANGUAGE_KEY = 'trippilot-language-v2'
 
 const resources = {
   en: {
