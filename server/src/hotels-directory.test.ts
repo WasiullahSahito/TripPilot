@@ -69,7 +69,7 @@ describe('GET /api/hotels/directory', () => {
     await a.get('/api/hotels/directory?lat=1&lng=1&radius=999999').expect(400)
   })
 
-  it('queries Overpass once, identifies the app, and serves repeats from the cache', async () => {
+  it('identifies the app and serves repeats from the cache', async () => {
     const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify(sample), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
     const a = await signedIn()
@@ -79,9 +79,23 @@ describe('GET /api/hotels/directory', () => {
     expect(first.notice).toMatch(/Prices, availability and reviews are not included/)
     const second = (await a.get('/api/hotels/directory?lat=48.8566&lng=2.3522').expect(200)).body
     expect(second.cached).toBe(true)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const init = fetchMock.mock.calls[0]![1] as RequestInit
-    expect((init.headers as Record<string, string>)['User-Agent']).toMatch(/TripPilot/)
+    const callsAfterFirst = fetchMock.mock.calls.length
+    await a.get('/api/hotels/directory?lat=48.8566&lng=2.3522').expect(200)
+    expect(fetchMock).toHaveBeenCalledTimes(callsAfterFirst)
+    for (const call of fetchMock.mock.calls) expect(((call[1] as RequestInit).headers as Record<string, string>)['User-Agent']).toMatch(/TripPilot/)
+  })
+
+  it('still lists hotels from Nominatim when every Overpass server is failing', async () => {
+    const nominatim = [{
+      osm_type: 'node', osm_id: 7, name: 'Hotel Khalidiya', lat: '24.4558', lon: '54.3188', category: 'tourism', type: 'hotel',
+      address: { road: 'Corniche', city: 'Abu Dhabi' }, extratags: { stars: '5', website: 'https://example.com' },
+    }, { osm_type: 'node', osm_id: 8, name: 'A Shop', lat: '24.4', lon: '54.3', category: 'shop', type: 'mall' }]
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async (url: string) =>
+      String(url).includes('nominatim') ? new Response(JSON.stringify(nominatim), { status: 200 }) : new Response('blocked', { status: 406 })))
+    const a = await signedIn()
+    const body = (await a.get('/api/hotels/directory?lat=24.4539&lng=54.3773').expect(200)).body
+    expect(body.listings).toHaveLength(1)
+    expect(body.listings[0]).toMatchObject({ name: 'Hotel Khalidiya', stars: 5, kind: 'hotel', address: 'Corniche, Abu Dhabi' })
   })
 
   it('maps a busy or failing upstream to a retryable error', async () => {

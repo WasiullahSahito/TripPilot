@@ -19,7 +19,7 @@ async function stubDirectory(page: Page) {
 
 async function searchHotels(page: Page) {
   await page.goto('/app/hotels')
-  await page.getByLabel('Destination').selectOption('Paris')
+  await page.getByLabel('Where are you going?').fill('Paris')
   await page.getByLabel('Check-in').fill(inDays(30))
   await page.getByLabel('Check-out').fill(inDays(34))
   await page.getByRole('button', { name: 'Find hotels' }).click()

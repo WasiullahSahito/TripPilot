@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Field, Input, Select } from '@/components/ui/field'
+import { resolveDestination } from '@/features/maps/destination'
 import { AffiliateDisclosure, PartnerLink } from '@/features/affiliate/partner-links'
 import type { Poi } from '@/features/maps/poi'
 import { searchDirectory, STAY_KIND_LABEL, type DirectoryResult, type HotelListing, type HotelSearchParams, type StayKind } from '@/services/hotels'
@@ -19,13 +20,15 @@ import { buildStay22Embed } from './stay22'
 const MapView = lazy(() => import('@/features/maps/map-view'))
 
 const today = () => new Date().toISOString().slice(0, 10)
+const inDays = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10)
 const cities = [...new Set(airports.map((a) => a.city))].sort((a, b) => a.localeCompare(b))
 const KINDS = Object.keys(STAY_KIND_LABEL) as StayKind[]
 const STAY22_AID = (import.meta.env.VITE_STAY22_AID as string | undefined)?.trim()
 
 const schema = z
   .object({
-    city: z.string().refine((v) => cities.includes(v), 'Choose a destination'),
+    city: z.string().trim().min(2, 'Type a city, e.g. Dubai'),
+    radiusKm: z.coerce.number().int().min(1).max(15),
     checkIn: z.string().min(1, 'Choose a date').refine((v) => v >= today(), 'Date is in the past'),
     checkOut: z.string().min(1, 'Choose a date'),
     guests: z.coerce.number().int().min(1).max(16),
@@ -77,7 +80,9 @@ function ListingCard({ hotel, search, selected, onSelect }: { hotel: HotelListin
 
 export default function HotelsPage() {
   const [result, setResult] = useState<DirectoryResult | null>(null)
-  const [searched, setSearched] = useState<(HotelSearchParams & { lat: number; lng: number }) | null>(null)
+  const [searched, setSearched] = useState<(HotelSearchParams & { lat: number; lng: number; radiusKm: number }) | null>(null)
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [limit, setLimit] = useState(60)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState<'list' | 'map'>('list')
@@ -94,22 +99,33 @@ export default function HotelsPage() {
     return () => { alive.current = false }
   }, [])
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { city: '', checkIn: '', checkOut: '', guests: 2, rooms: 1 },
+    defaultValues: { city: '', checkIn: inDays(1), checkOut: inDays(4), guests: 2, rooms: 1, radiusKm: 5 },
   })
 
-  const onSubmit = handleSubmit(async (raw) => {
+  const run = async (raw: FormValues) => {
     const v = schema.parse(raw)
-    const place = airports.find((a) => a.city === v.city)!
     setLoading(true)
     setError(null)
+    setSuggestions([])
     setSelectedId(null)
+    setLimit(60)
     try {
-      const res = await searchDirectory(place.lat, place.lng)
+      const r = await resolveDestination(v.city)
+      if (!alive.current) return
+      if (!r.destination) {
+        setResult(null)
+        setSearched(null)
+        setError(r.message ?? 'Destination not found.')
+        setSuggestions(r.suggestions ?? [])
+        return
+      }
+      const { center, name } = r.destination
+      const res = await searchDirectory(center.lat, center.lng, v.radiusKm * 1000)
       if (!alive.current) return
       setResult(res)
-      setSearched({ ...v, lat: place.lat, lng: place.lng })
+      setSearched({ ...v, city: name, lat: center.lat, lng: center.lng })
     } catch (e) {
       if (!alive.current) return
       setResult(null)
@@ -118,14 +134,15 @@ export default function HotelsPage() {
     } finally {
       if (alive.current) setLoading(false)
     }
-  })
+  }
+  const onSubmit = handleSubmit(run)
 
   const shown = useMemo(
     () => sortListings(filterListings(result?.listings ?? [], { kinds, minStars, withWebsite, query }), sort),
     [result, kinds, minStars, withWebsite, query, sort],
   )
   const pois: Poi[] = useMemo(
-    () => shown.slice(0, 150).map((h) => ({ id: h.id, kind: 'hotel' as const, title: h.name, detail: `${STAY_KIND_LABEL[h.kind]}${h.stars ? `, ${h.stars} stars` : ''}`, lat: h.lat, lng: h.lng })),
+    () => shown.slice(0, 300).map((h) => ({ id: h.id, kind: 'hotel' as const, title: h.name, detail: `${STAY_KIND_LABEL[h.kind]}${h.stars ? `, ${h.stars} stars` : ''}`, lat: h.lat, lng: h.lng })),
     [shown],
   )
   const stay22 = searched ? buildStay22Embed(STAY22_AID, { lat: searched.lat, lng: searched.lng, checkin: searched.checkIn, checkout: searched.checkOut }) : null
@@ -135,7 +152,7 @@ export default function HotelsPage() {
       <header>
         <h1 className="text-2xl font-semibold">Hotels</h1>
         <p className="mt-1 text-sm text-ink-soft">
-          Find real places to stay, then check live prices with a booking partner. Rooms you can book directly appear above when a booking provider is connected; everything else links out to partners.
+          Search any city to see real hotels, hostels and guest houses on the map, then check today’s prices on the booking sites.
         </p>
       </header>
 
@@ -144,11 +161,9 @@ export default function HotelsPage() {
       <Card className="p-5">
         <form onSubmit={onSubmit} noValidate aria-label="Hotel search" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
           <div className="lg:col-span-2">
-            <Field label="Destination" htmlFor="h-city" error={errors.city?.message}>
-              <Select id="h-city" aria-invalid={!!errors.city} {...register('city')}>
-                <option value="">Select…</option>
-                {cities.map((c) => <option key={c}>{c}</option>)}
-              </Select>
+            <Field label="Where are you going?" htmlFor="h-city" error={errors.city?.message}>
+              <Input id="h-city" list="h-cities" placeholder="Any city, e.g. Dubai" autoComplete="off" aria-invalid={!!errors.city} {...register('city')} />
+              <datalist id="h-cities">{cities.map((c) => <option key={c} value={c} />)}</datalist>
             </Field>
           </div>
           <Field label="Check-in" htmlFor="h-in" error={errors.checkIn?.message}>
@@ -163,11 +178,21 @@ export default function HotelsPage() {
           <Field label="Rooms" htmlFor="h-rooms" error={errors.rooms?.message}>
             <Input id="h-rooms" type="number" min={1} max={8} {...register('rooms')} />
           </Field>
-          <div className="sm:col-span-2 lg:col-span-6"><Button type="submit" variant="accent" disabled={loading}>{loading ? 'Searching…' : 'Find hotels'}</Button></div>
+          <Field label="Search area" htmlFor="h-radius">
+            <Select id="h-radius" {...register('radiusKm')}>
+              <option value={3}>Within 3 km</option><option value={5}>Within 5 km</option><option value={10}>Within 10 km</option><option value={15}>Within 15 km</option>
+            </Select>
+          </Field>
+          <div className="flex items-end sm:col-span-2 lg:col-span-5"><Button type="submit" variant="accent" className="w-full sm:w-auto" disabled={loading}>{loading ? 'Searching…' : 'Find hotels'}</Button></div>
         </form>
       </Card>
 
       {error && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {suggestions.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {suggestions.map((c) => <Button key={c} size="sm" variant="outline" onClick={() => { setValue('city', c); void run({ city: c, checkIn: inDays(1), checkOut: inDays(4), guests: 2, rooms: 1, radiusKm: 5 }) }}>{c}</Button>)}
+        </div>
+      )}
       {loading && <p role="status" className="text-sm text-ink-soft">Looking up places to stay…</p>}
 
       {result && searched && !loading && (
@@ -186,7 +211,7 @@ export default function HotelsPage() {
               </section>
             )
           ) : (
-            <p className="text-xs text-ink-soft">Live prices on a map need a free Stay22 affiliate id (set <code>VITE_STAY22_AID</code>). Until then, use the “Check prices” links on each property.</p>
+            <p className="text-xs text-ink-soft">Prices change daily. Use the “Check prices” links on a hotel to see today’s rates with your dates.</p>
           )}
 
           <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
@@ -232,20 +257,20 @@ export default function HotelsPage() {
               {result.listings.length === 0 && (
                 <Card className="p-8 text-center text-sm text-ink-soft">
                   <Building2 className="mx-auto mb-2 size-6" aria-hidden />
-                  No properties are mapped within 5 km of {searched.city}’s centre in OpenStreetMap. Try a booking partner’s search instead.
+                  No properties are mapped within {searched.radiusKm} km of {searched.city} in OpenStreetMap. Try a wider search area, or a booking partner’s search.
                 </Card>
               )}
               {result.listings.length > 0 && shown.length === 0 && <Card className="p-8 text-center text-sm text-ink-soft">No places match these filters.</Card>}
-              {shown.slice(0, 60).map((h) => (
+              {shown.slice(0, limit).map((h) => (
                 <ListingCard key={h.id} hotel={h} search={searched} selected={h.id === selectedId} onSelect={() => { setSelectedId(h.id); setView('map') }} />
               ))}
-              {shown.length > 60 && <p className="text-xs text-ink-soft">Showing the 60 closest of {shown.length}. Use the filters to narrow the list.</p>}
+              {shown.length > limit && <Button variant="outline" onClick={() => setLimit((n) => n + 60)}>Show more ({shown.length - limit} left)</Button>}
               <AffiliateDisclosure />
             </section>
           </div>
         </>
       )}
-      {!result && !loading && !error && <Card className="p-10 text-center text-sm text-ink-soft">Choose a destination and dates to see places to stay.</Card>}
+      {!result && !loading && !error && <Card className="p-10 text-center text-sm text-ink-soft">Type a city and press “Find hotels”.</Card>}
     </div>
   )
 }

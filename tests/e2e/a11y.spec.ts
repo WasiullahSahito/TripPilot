@@ -43,7 +43,7 @@ test.describe('accessibility (axe, WCAG 2.1 A/AA, serious and critical only)', (
       cached: false, source: 'OpenStreetMap contributors', notice: 'Real properties from OpenStreetMap. Prices, availability and reviews are not included.',
     } }))
     await page.goto('/app/hotels')
-    await page.getByLabel('Destination').selectOption('Paris')
+    await page.getByLabel('Where are you going?').fill('Paris')
     await page.getByLabel('Check-in').fill('2030-05-01')
     await page.getByLabel('Check-out').fill('2030-05-04')
     await page.getByRole('button', { name: 'Find hotels' }).click()

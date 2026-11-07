@@ -1070,7 +1070,7 @@ function address(t) {
   const street = [t["addr:housenumber"], t["addr:street"]].filter(Boolean).join(" ");
   return [street, t["addr:suburb"], t["addr:city"], t["addr:postcode"]].filter(Boolean).join(", ");
 }
-function parseOverpass(json, center, limit = 120) {
+function parseOverpass(json, center, limit = 300) {
   const elements = json?.elements;
   if (!Array.isArray(elements)) throw new HttpError(502, "Unexpected response from the hotel directory");
   const out = [];
@@ -1106,41 +1106,113 @@ var FALLBACK_SERVERS = [
   "https://overpass.private.coffee/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter"
 ];
+var USER_AGENT = "TripPilot/0.1 (travel planning app; hotel directory)";
 var TTL_MS = 6 * 60 * 60 * 1e3;
 var MAX_ENTRIES = 200;
 var cache = /* @__PURE__ */ new Map();
+var OverpassFailure = class extends Error {
+  status;
+  constructor(status) {
+    super(`Overpass failed (${status})`);
+    this.status = status;
+  }
+};
+async function fromOverpass(lat, lng, radiusM) {
+  const body = new URLSearchParams({ data: buildQuery(lat, lng, radiusM) });
+  const servers = [env.overpassUrl, ...FALLBACK_SERVERS.filter((u) => u !== env.overpassUrl)];
+  let failure = 0;
+  const res = await Promise.any(
+    servers.map(async (url) => {
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": USER_AGENT },
+          body,
+          signal: AbortSignal.timeout(9e3)
+        });
+        if (!r.ok) {
+          failure ||= r.status;
+          console.warn(`[hotels] Overpass ${new URL(url).host} answered ${r.status}`);
+          throw new Error(String(r.status));
+        }
+        return r;
+      } catch (e) {
+        if (!failure) console.warn(`[hotels] Overpass ${new URL(url).host} did not respond`);
+        throw e;
+      }
+    })
+  ).catch(() => {
+    throw new OverpassFailure(failure);
+  });
+  return parseOverpass(await res.json().catch(() => null), { lat, lng });
+}
+function parseNominatim(json, center) {
+  if (!Array.isArray(json)) return [];
+  const out = [];
+  for (const h of json) {
+    const kind = h.category === "tourism" ? TOURISM_TO_KIND[h.type ?? ""] : void 0;
+    const name = h.name?.trim();
+    const lat = Number(h.lat);
+    const lng = Number(h.lon);
+    if (!kind || !name || !Number.isFinite(lat) || !Number.isFinite(lng) || !h.osm_type || !h.osm_id) continue;
+    const t = h.extratags ?? {};
+    const a = h.address ?? {};
+    const stars = Number.parseFloat(t.stars ?? "");
+    const street = [a.house_number, a.road].filter(Boolean).join(" ");
+    out.push({
+      id: `${h.osm_type}/${h.osm_id}`,
+      name: name.slice(0, 120),
+      kind,
+      stars: Number.isFinite(stars) && stars >= 1 && stars <= 5 ? Math.round(stars * 2) / 2 : null,
+      lat,
+      lng,
+      distanceKm: Math.round(haversineKm(center, { lat, lng }) * 10) / 10,
+      address: [street, a.suburb ?? a.neighbourhood, a.city ?? a.town ?? a.village, a.postcode].filter(Boolean).join(", ").slice(0, 200),
+      website: safeUrl(t.website ?? t["contact:website"]),
+      phone: (t.phone ?? t["contact:phone"] ?? "").slice(0, 40) || null,
+      wifi: t.internet_access === "wlan" || t.internet_access === "yes" ? true : t.internet_access === "no" ? false : null,
+      wheelchair: t.wheelchair === "yes" || t.wheelchair === "limited" || t.wheelchair === "no" ? t.wheelchair : null,
+      osmUrl: `https://www.openstreetmap.org/${h.osm_type}/${h.osm_id}`
+    });
+  }
+  return out;
+}
+async function fromNominatim(lat, lng, radiusM) {
+  const dLat = radiusM / 111320;
+  const dLng = radiusM / (111320 * Math.max(Math.cos(lat * Math.PI / 180), 0.01));
+  const viewbox = [lng - dLng, lat + dLat, lng + dLng, lat - dLat].map((n) => n.toFixed(5)).join(",");
+  const found = [];
+  let ok2 = false;
+  for (const [i, q] of ["hotel", "guest house", "hostel"].entries()) {
+    if (i > 0 && !env.isTest) await new Promise((r) => setTimeout(r, 1100));
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=40&addressdetails=1&extratags=1&accept-language=en&bounded=1&viewbox=${viewbox}&q=${encodeURIComponent(q)}`;
+    try {
+      const r = await fetch(url, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" }, signal: AbortSignal.timeout(8e3) });
+      if (!r.ok) continue;
+      ok2 = true;
+      found.push(...parseNominatim(await r.json().catch(() => null), { lat, lng }));
+    } catch {
+    }
+  }
+  if (!ok2) throw new Error("Nominatim unavailable");
+  return found;
+}
 async function fetchDirectory(lat, lng, radiusM) {
   const key2 = `${lat.toFixed(2)},${lng.toFixed(2)},${radiusM}`;
   const hit = cache.get(key2);
   if (hit && Date.now() - hit.at < TTL_MS) return { listings: hit.listings, cached: true };
-  const body = new URLSearchParams({ data: buildQuery(lat, lng, radiusM) });
-  const servers = [env.overpassUrl, ...FALLBACK_SERVERS.filter((u) => u !== env.overpassUrl)];
-  let res;
-  let failure = 0;
-  for (const [i, url] of servers.entries()) {
-    try {
-      const r = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "TripPilot/0.1 (travel planning app; hotel directory)" },
-        body,
-        signal: AbortSignal.timeout(i === servers.length - 1 ? 15e3 : 9e3)
-      });
-      if (r.ok) {
-        res = r;
-        break;
-      }
-      failure ||= r.status;
-      console.warn(`[hotels] Overpass ${new URL(url).host} answered ${r.status}`);
-    } catch {
-      console.warn(`[hotels] Overpass ${new URL(url).host} did not respond`);
-    }
-  }
-  if (!res) {
+  const [overpass, nominatim] = await Promise.allSettled([fromOverpass(lat, lng, radiusM), fromNominatim(lat, lng, radiusM)]);
+  if (overpass.status === "rejected" && nominatim.status === "rejected") {
+    const failure = overpass.reason instanceof OverpassFailure ? overpass.reason.status : 0;
     if (failure === 0) throw new HttpError(502, "The hotel directory did not respond. Try again in a minute.");
     if (failure === 429 || failure === 504) throw new HttpError(503, "The hotel directory is busy. Try again in a minute.");
     throw new HttpError(502, "The hotel directory returned an error.");
   }
-  const listings = parseOverpass(await res.json().catch(() => null), { lat, lng });
+  const merged = /* @__PURE__ */ new Map();
+  for (const r of [overpass, nominatim]) if (r.status === "fulfilled") {
+    for (const l of r.value) if (!merged.has(l.id)) merged.set(l.id, l);
+  }
+  const listings = [...merged.values()].sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 300);
   if (cache.size >= MAX_ENTRIES) cache.delete(cache.keys().next().value);
   cache.set(key2, { at: Date.now(), listings });
   return { listings, cached: false };
