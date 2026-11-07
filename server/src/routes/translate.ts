@@ -83,6 +83,24 @@ async function translateWithMyMemory(text: string, source: string, target: strin
   return translated.join('\n').replace(/ ?\n ?/g, '\n')
 }
 
+/** Returns null when the server cannot be used, so the caller can fall back. */
+async function translateWithLibre(baseUrl: string, text: string, source: string, target: string) {
+  try {
+    const upstream = await fetch(`${baseUrl.replace(/\/$/, '')}/translate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: text, source, target, format: 'text' }),
+      signal: AbortSignal.timeout(6_000),
+    })
+    if (!upstream.ok) return null
+    const data = (await upstream.json().catch(() => null)) as { translatedText?: unknown; detectedLanguage?: { language?: string } } | null
+    if (typeof data?.translatedText !== 'string') return null
+    return { translatedText: data.translatedText, detected: data.detectedLanguage?.language ?? null }
+  } catch {
+    return null
+  }
+}
+
 const limiter = rateLimit({
   windowMs: 60_000,
   limit: 20,
@@ -104,27 +122,17 @@ export function translateRoutes() {
   r.post('/', limiter, async (req, res) => {
     const { text, source, target } = input.parse(req.body)
     if (looksLikeMrz(text)) throw new HttpError(422, 'This looks like passport data, so it was not sent for translation')
-    // No self-hosted LibreTranslate (needs a VPS)? Use the free MyMemory API, which works from Vercel.
-    if (!env.libreTranslateUrl) {
-      res.json({ translatedText: await translateWithMyMemory(text, source, target), detected: null })
-      return
+    // A self-hosted LibreTranslate server is optional (it needs a VPS). If none is configured, or the configured one is down or
+    // unreachable (for example a leftover http://localhost:5000), fall back to the free MyMemory API, which works from Vercel.
+    if (env.libreTranslateUrl) {
+      const viaLibre = await translateWithLibre(env.libreTranslateUrl, text, source, target)
+      if (viaLibre) {
+        res.json(viaLibre)
+        return
+      }
+      console.warn('[translate] LibreTranslate is not responding; using MyMemory instead')
     }
-
-    let upstream: Response
-    try {
-      upstream = await fetch(`${env.libreTranslateUrl.replace(/\/$/, '')}/translate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ q: text, source, target, format: 'text' }),
-        signal: AbortSignal.timeout(15_000),
-      })
-    } catch {
-      throw new HttpError(502, 'The translation service did not respond')
-    }
-    if (!upstream.ok) throw new HttpError(502, 'The translation service returned an error')
-    const data = (await upstream.json().catch(() => null)) as { translatedText?: unknown; detectedLanguage?: { language?: string } } | null
-    if (typeof data?.translatedText !== 'string') throw new HttpError(502, 'The translation service returned an unexpected response')
-    res.json({ translatedText: data.translatedText, detected: data.detectedLanguage?.language ?? null })
+    res.json({ translatedText: await translateWithMyMemory(text, source, target), detected: null })
   })
 
   return r

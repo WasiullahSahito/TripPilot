@@ -791,6 +791,22 @@ async function translateWithMyMemory(text2, source, target) {
   }
   return translated.join("\n").replace(/ ?\n ?/g, "\n");
 }
+async function translateWithLibre(baseUrl, text2, source, target) {
+  try {
+    const upstream = await fetch(`${baseUrl.replace(/\/$/, "")}/translate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ q: text2, source, target, format: "text" }),
+      signal: AbortSignal.timeout(6e3)
+    });
+    if (!upstream.ok) return null;
+    const data = await upstream.json().catch(() => null);
+    if (typeof data?.translatedText !== "string") return null;
+    return { translatedText: data.translatedText, detected: data.detectedLanguage?.language ?? null };
+  } catch {
+    return null;
+  }
+}
 var limiter = rateLimit2({
   windowMs: 6e4,
   limit: 20,
@@ -805,25 +821,15 @@ function translateRoutes() {
   r.post("/", limiter, async (req, res) => {
     const { text: text2, source, target } = input.parse(req.body);
     if (looksLikeMrz(text2)) throw new HttpError(422, "This looks like passport data, so it was not sent for translation");
-    if (!env.libreTranslateUrl) {
-      res.json({ translatedText: await translateWithMyMemory(text2, source, target), detected: null });
-      return;
+    if (env.libreTranslateUrl) {
+      const viaLibre = await translateWithLibre(env.libreTranslateUrl, text2, source, target);
+      if (viaLibre) {
+        res.json(viaLibre);
+        return;
+      }
+      console.warn("[translate] LibreTranslate is not responding; using MyMemory instead");
     }
-    let upstream;
-    try {
-      upstream = await fetch(`${env.libreTranslateUrl.replace(/\/$/, "")}/translate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ q: text2, source, target, format: "text" }),
-        signal: AbortSignal.timeout(15e3)
-      });
-    } catch {
-      throw new HttpError(502, "The translation service did not respond");
-    }
-    if (!upstream.ok) throw new HttpError(502, "The translation service returned an error");
-    const data = await upstream.json().catch(() => null);
-    if (typeof data?.translatedText !== "string") throw new HttpError(502, "The translation service returned an unexpected response");
-    res.json({ translatedText: data.translatedText, detected: data.detectedLanguage?.language ?? null });
+    res.json({ translatedText: await translateWithMyMemory(text2, source, target), detected: null });
   });
   return r;
 }

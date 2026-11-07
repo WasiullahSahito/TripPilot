@@ -57,6 +57,16 @@ describe('POST /api/translate', () => {
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({ q: 'hola', source: 'auto', target: 'en', format: 'text' })
   })
 
+  it('falls back to MyMemory when the configured LibreTranslate server is unreachable (e.g. a leftover localhost URL)', async () => {
+    env.libreTranslateUrl = 'http://localhost:5000'
+    const fetchMock = vi.fn().mockImplementation(async (url: string | URL) =>
+      String(url).includes('localhost') ? Promise.reject(new Error('ECONNREFUSED')) : new Response(JSON.stringify({ responseData: { translatedText: 'مرحبا' }, responseStatus: 200 }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const a = await signedIn()
+    const res = await a.post('/api/translate').send({ text: 'hello', source: 'en', target: 'ar' }).expect(200)
+    expect(res.body.translatedText).toBe('مرحبا')
+  })
+
   it('never sends passport MRZ text upstream', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
