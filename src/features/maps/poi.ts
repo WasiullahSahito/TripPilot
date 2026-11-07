@@ -8,6 +8,8 @@ export interface Poi extends LatLng {
   kind: PoiKind
   title: string
   detail: string
+  /** Set for places loaded from OpenStreetMap. */
+  category?: 'sight' | 'park' | 'food'
 }
 
 export const KIND_LABEL: Record<PoiKind, string> = { attraction: 'Attractions', hotel: 'Hotels' }

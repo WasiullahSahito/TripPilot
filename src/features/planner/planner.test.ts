@@ -46,3 +46,23 @@ describe('generateItinerary', () => {
     expect(txt).toContain('(suggestion)')
   })
 })
+
+describe('generateItinerary with real places', () => {
+  const mk = (i: number, category: 'sight' | 'park' | 'food', lat: number) => ({
+    id: `p${i}`, kind: 'attraction' as const, category, title: `${category}-${i}`, detail: 'x', lat, lng: 10,
+  })
+  const places = [mk(1, 'sight', 1), mk(2, 'sight', 1.01), mk(3, 'sight', 1.02), mk(4, 'sight', 1.03), mk(5, 'food', 1.0), mk(6, 'food', 1.02), mk(7, 'park', 1.0)]
+
+  it('uses real places, never repeats one, and puts food in the evening', () => {
+    const plan = generateItinerary({ city: 'Anywhere', days: 2, pace: 'packed', interests: [], places })
+    const titles = plan.flatMap((d) => d.items).map((i) => i.title)
+    expect(new Set(titles).size).toBe(titles.length)
+    expect(plan.every((d) => d.items[2]!.kind === 'restaurant')).toBe(true)
+    expect(titles.some((t) => /free time|explore/i.test(t))).toBe(false)
+  })
+
+  it('falls back to the curated generator when too few places are found', () => {
+    const plan = generateItinerary({ city: 'Paris', days: 1, pace: 'relaxed', interests: [], places: places.slice(0, 2) })
+    expect(plan[0]!.items[0]!.title).toBe('Eiffel Tower')
+  })
+})

@@ -6,8 +6,10 @@ import { Card } from '@/components/ui/card'
 import { Field, Input, Select } from '@/components/ui/field'
 import { cn } from '@/lib/utils'
 import { formatKm, haversineKm, type LatLng } from './geo'
-import { drivingRoute, geocode, type RouteResult } from './osm'
-import { cityCenter, KIND_LABEL, mapCities, poisForCity } from './poi'
+import { resolveDestination } from './destination'
+import { fetchPlaces } from './overpass'
+import { drivingRoute, type RouteResult } from './osm'
+import { cityCenter, KIND_LABEL, mapCities, poisForCity, type Poi } from './poi'
 
 // Leaflet is only fetched when this page renders the map.
 const MapView = lazy(() => import('./map-view'))
@@ -20,14 +22,18 @@ export default function MapsPage() {
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
   const [searchMsg, setSearchMsg] = useState<string | null>(null)
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [placeName, setPlaceName] = useState<string | null>(null)
+  const [found, setFound] = useState<Poi[]>([])
   const [fromId, setFromId] = useState('')
   const [toId, setToId] = useState('')
   const [route, setRoute] = useState<RouteResult | null>(null)
   const [routing, setRouting] = useState(false)
   const [routeMsg, setRouteMsg] = useState<string | null>(null)
 
-  const all = useMemo(() => poisForCity(city), [city])
-  const pois = all
+  const curated = useMemo(() => poisForCity(city), [city])
+  // Real places loaded for a searched destination replace the small curated list.
+  const pois = found.length ? found : curated
   const selected = pois.find((p) => p.id === selectedId) ?? null
   const from = pois.find((p) => p.id === fromId)
   const to = pois.find((p) => p.id === toId)
@@ -50,29 +56,47 @@ export default function MapsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pair?.from.id, pair?.to.id])
 
-  const changeCity = (c: string) => {
-    setCity(c)
-    setCenter(cityCenter(c))
+  const reset = () => {
     setSelectedId(null)
     setFromId('')
     setToId('')
     setSearchMsg(null)
+    setSuggestions([])
   }
 
-  const search = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const q = query.trim()
+  const changeCity = (c: string) => {
+    setCity(c)
+    setCenter(cityCenter(c))
+    setPlaceName(null)
+    setFound([])
+    reset()
+  }
+
+  const search = async (e?: React.FormEvent, text = query) => {
+    e?.preventDefault()
+    const q = text.trim()
     if (!q) return
-    setSearchMsg(null)
-    const local = mapCities.find((c) => c.toLowerCase() === q.toLowerCase())
-    if (local) return changeCity(local)
+    reset()
     setSearching(true)
     try {
-      const hit = await geocode(q)
-      if (hit) {
-        setCenter({ lat: hit.lat, lng: hit.lng })
-        setSearchMsg(`Showing ${hit.label}`)
-      } else setSearchMsg('No results found.')
+      const r = await resolveDestination(q)
+      if (!r.destination) {
+        setSearchMsg(r.message ?? 'No results found.')
+        setSuggestions(r.suggestions ?? [])
+        return
+      }
+      const d = r.destination
+      setCenter(d.center)
+      setPlaceName(d.name)
+      setFound([])
+      setSearchMsg(`Showing ${d.name}. Loading real places…`)
+      try {
+        const places = await fetchPlaces(d.center)
+        setFound(places)
+        setSearchMsg(places.length ? `Showing ${d.name}: ${places.length} real places found nearby.` : `Showing ${d.name}. No named places were found nearby.`)
+      } catch {
+        setSearchMsg(`Showing ${d.name}. Places could not be loaded right now (free map service busy).`)
+      }
     } catch {
       setSearchMsg('Search is unavailable right now. Try again in a moment.')
     } finally {
@@ -89,19 +113,25 @@ export default function MapsPage() {
 
       <Card className="grid gap-4 p-4 sm:grid-cols-[200px_1fr]">
         <Field label="Destination" htmlFor="m-city">
-          <Select id="m-city" value={city} onChange={(e) => changeCity(e.target.value)}>
+          <Select id="m-city" value={placeName ? '' : city} onChange={(e) => changeCity(e.target.value)}>
+            {placeName && <option value="" disabled>{placeName}</option>}
             {mapCities.map((c) => <option key={c}>{c}</option>)}
           </Select>
         </Field>
         <form onSubmit={(e) => void search(e)} className="flex items-end gap-2" role="search" aria-label="Search the map">
           <div className="flex-1">
             <Field label="Search any place or city" htmlFor="m-search">
-              <Input id="m-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="e.g. Lisbon" />
+              <Input id="m-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Any city or place, e.g. Lisbon" />
             </Field>
           </div>
           <Button type="submit" variant="outline" disabled={searching}><Search className="size-4" aria-hidden />{searching ? 'Searching…' : 'Search'}</Button>
         </form>
         {searchMsg && <p role="status" className="text-sm text-ink-soft sm:col-span-2">{searchMsg}</p>}
+        {suggestions.length > 0 && (
+          <div className="flex flex-wrap gap-2 sm:col-span-2">
+            {suggestions.map((c) => <Button key={c} size="sm" variant="outline" onClick={() => { setQuery(c); void search(undefined, c) }}>{c}</Button>)}
+          </div>
+        )}
       </Card>
 
       <div className="flex justify-end">
@@ -119,7 +149,7 @@ export default function MapsPage() {
             </Suspense>
           ) : (
             <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
-              {pois.length === 0 && <li className="p-6 text-center text-sm text-ink-soft">No curated landmarks are listed for this city yet.</li>}
+              {pois.length === 0 && <li className="p-6 text-center text-sm text-ink-soft">No places are listed here yet. Search any city above to load real places.</li>}
               {pois.map((p) => (
                 <li key={p.id}>
                   <button className={cn('flex w-full items-center justify-between gap-3 p-4 text-left hover:bg-muted', p.id === selectedId && 'bg-muted')} onClick={() => setSelectedId(p.id)}>
@@ -131,7 +161,7 @@ export default function MapsPage() {
             </ul>
           )}
           <p className="mt-2 text-xs text-ink-soft">
-            Curated landmarks are shown at approximate positions; search and map tiles use OpenStreetMap.
+            Places come from OpenStreetMap; the first few cities also have curated landmarks at approximate positions.
             Map data © OpenStreetMap contributors.
           </p>
         </div>

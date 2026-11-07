@@ -9,6 +9,8 @@ import type { LatLng } from './geo'
 
 export interface GeocodeHit extends LatLng {
   label: string
+  /** Nominatim's place type, e.g. "country", "city", "suburb". */
+  type?: string
 }
 
 export interface RouteResult {
@@ -19,11 +21,11 @@ export interface RouteResult {
 
 export function parseNominatim(json: unknown): GeocodeHit | null {
   if (!Array.isArray(json) || json.length === 0) return null
-  const hit = json[0] as { lat?: string; lon?: string; display_name?: string }
+  const hit = json[0] as { lat?: string; lon?: string; display_name?: string; addresstype?: string }
   const lat = Number(hit.lat)
   const lng = Number(hit.lon)
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
-  return { lat, lng, label: hit.display_name ?? 'Result' }
+  return { lat, lng, label: hit.display_name ?? 'Result', type: hit.addresstype }
 }
 
 export function parseOsrm(json: unknown): RouteResult | null {
@@ -38,7 +40,7 @@ export function parseOsrm(json: unknown): RouteResult | null {
 }
 
 export async function geocode(query: string, signal?: AbortSignal): Promise<GeocodeHit | null> {
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(query)}`
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=en&q=${encodeURIComponent(query)}`
   const res = await fetch(url, { signal, headers: { Accept: 'application/json' } })
   if (!res.ok) throw new Error(`Geocoding failed (${res.status})`)
   return parseNominatim(await res.json())
