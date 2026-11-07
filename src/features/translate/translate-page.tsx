@@ -58,7 +58,7 @@ export default function TranslatePage() {
       const r = await api<{ translatedText: string }>('/translate', { method: 'POST', body: { text, source, target } })
       setResult(r.translatedText)
     } catch (e) {
-      setError(e instanceof ApiError ? (e.status === 501 ? 'Translation isn’t set up on this server yet. The administrator needs to connect a LibreTranslate server.' : e.message) : 'Translation failed')
+      setError(e instanceof ApiError ? (e.status === 501 ? 'Translation is temporarily unavailable. Please try again later.' : e.message) : 'Translation failed')
     } finally {
       setTranslating(false)
     }

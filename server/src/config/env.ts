@@ -28,6 +28,8 @@ export const env = {
   supabaseServiceKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
   supabaseBucket: process.env.SUPABASE_BUCKET ?? 'documents',
   libreTranslateUrl: process.env.LIBRETRANSLATE_URL?.trim().replace(/\/+$/, '') || undefined,
+  // Optional: an email raises the free MyMemory translation quota from 5,000 to 50,000 characters/day.
+  myMemoryEmail: process.env.MYMEMORY_EMAIL?.trim() || undefined,
   // Public Overpass server by default (light use only); point at your own instance for heavy or commercial use.
   // Optional ClamAV daemon (clamd) for real malware scanning. Without it only the built-in structural checks run.
   clamdHost: process.env.CLAMD_HOST || undefined,

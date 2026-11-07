@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp } from './app.ts'
 import { env } from './config/env.ts'
 import { JsonStore } from './models/store.ts'
-import { looksLikeMrz } from './routes/translate.ts'
+import { chunkText, looksLikeMrz } from './routes/translate.ts'
 
 const creds = { name: 'Test User', email: 'tr@example.com', password: 'correct-horse-battery' }
 const MRZ = 'P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\nL898902C36UTO7408122F1204159ZE184226B<<<<<10'
@@ -28,10 +28,22 @@ describe('POST /api/translate', () => {
     await request(createApp(new JsonStore())).post('/api/translate').send({ text: 'x', source: 'auto', target: 'en' }).expect(401)
   })
 
-  it('returns 501 when no translation server is configured', async () => {
+  it('falls back to the free MyMemory API when no LibreTranslate server is configured', async () => {
     env.libreTranslateUrl = undefined
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ responseData: { translatedText: 'hello' }, responseStatus: 200 }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
     const a = await signedIn()
-    await a.post('/api/translate').send({ text: 'hola', source: 'auto', target: 'en' }).expect(501)
+    const res = await a.post('/api/translate').send({ text: 'hola', source: 'auto', target: 'zh' }).expect(200)
+    expect(res.body).toEqual({ translatedText: 'hello', detected: null })
+    const url = new URL(String(fetchMock.mock.calls[0]![0]))
+    expect(url.hostname).toBe('api.mymemory.translated.net')
+    expect(url.searchParams.get('langpair')).toBe('Autodetect|zh-CN')
+  })
+
+  it('splits long text into chunks under the free API limit', () => {
+    const chunks = chunkText('One sentence here. '.repeat(100) + '\nSecond line.')
+    expect(chunks.every((c) => c.length <= 450)).toBe(true)
+    expect(chunks.join('')).toContain('Second line.')
   })
 
   it('forwards text to LibreTranslate and returns the translation', async () => {

@@ -35,6 +35,8 @@ var env = {
   supabaseServiceKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
   supabaseBucket: process.env.SUPABASE_BUCKET ?? "documents",
   libreTranslateUrl: process.env.LIBRETRANSLATE_URL?.trim().replace(/\/+$/, "") || void 0,
+  // Optional: an email raises the free MyMemory translation quota from 5,000 to 50,000 characters/day.
+  myMemoryEmail: process.env.MYMEMORY_EMAIL?.trim() || void 0,
   // Public Overpass server by default (light use only); point at your own instance for heavy or commercial use.
   // Optional ClamAV daemon (clamd) for real malware scanning. Without it only the built-in structural checks run.
   clamdHost: process.env.CLAMD_HOST || void 0,
@@ -732,6 +734,63 @@ var input = z3.object({
 function looksLikeMrz(text2) {
   return text2.toUpperCase().split(/\r?\n/).map((l) => l.replace(/[^A-Z0-9<]/g, "")).some((l) => l.length >= 36 && (l.match(/</g)?.length ?? 0) >= 5);
 }
+var MYMEMORY_URL = "https://api.mymemory.translated.net/get";
+var MYMEMORY_MAX = 450;
+var MYMEMORY_LANG = { zh: "zh-CN" };
+function chunkText(text2, max = MYMEMORY_MAX) {
+  const out = [];
+  for (const line of text2.split("\n")) {
+    if (!line.trim()) {
+      out.push("");
+      continue;
+    }
+    let cur = "";
+    for (const piece of line.match(/[^.!?؟。！？]+[.!?؟。！？]*\s*|\S+/g) ?? [line]) {
+      for (let i = 0; i < piece.length; i += max) {
+        const part = piece.slice(i, i + max);
+        if (cur && cur.length + part.length > max) {
+          out.push(cur);
+          cur = "";
+        }
+        cur += part;
+      }
+    }
+    if (cur) out.push(cur);
+  }
+  return out;
+}
+async function translateWithMyMemory(text2, source, target) {
+  const code = (c) => MYMEMORY_LANG[c] ?? c;
+  const pair = `${source === "auto" ? "Autodetect" : code(source)}|${code(target)}`;
+  const chunks = chunkText(text2);
+  const translated = [];
+  for (let i = 0; i < chunks.length; i += 4) {
+    const batch = await Promise.all(
+      chunks.slice(i, i + 4).map(async (q) => {
+        if (!q.trim()) return q;
+        const url = new URL(MYMEMORY_URL);
+        url.searchParams.set("q", q);
+        url.searchParams.set("langpair", pair);
+        if (env.myMemoryEmail) url.searchParams.set("de", env.myMemoryEmail);
+        let r;
+        try {
+          r = await fetch(url, { signal: AbortSignal.timeout(1e4) });
+        } catch {
+          throw new HttpError(502, "The translation service did not respond");
+        }
+        const data = await r.json().catch(() => null);
+        const status = Number(data?.responseStatus ?? r.status);
+        if (status === 429 || /QUOTA/i.test(String(data?.responseData?.translatedText))) {
+          throw new HttpError(429, "The free daily translation limit was reached. Please try again tomorrow.");
+        }
+        if (status !== 200 || typeof data?.responseData?.translatedText !== "string") throw new HttpError(502, "The translation service returned an error");
+        return data.responseData.translatedText;
+      })
+    );
+    translated.push(...batch);
+  }
+  return translated.join("\n").replace(/ ?\n ?/g, "\n");
+}
 var limiter = rateLimit2({
   windowMs: 6e4,
   limit: 20,
@@ -744,9 +803,12 @@ function translateRoutes() {
   const r = Router3();
   r.use(requireAuth);
   r.post("/", limiter, async (req, res) => {
-    if (!env.libreTranslateUrl) throw new HttpError(501, "Translation is not configured on this server");
     const { text: text2, source, target } = input.parse(req.body);
     if (looksLikeMrz(text2)) throw new HttpError(422, "This looks like passport data, so it was not sent for translation");
+    if (!env.libreTranslateUrl) {
+      res.json({ translatedText: await translateWithMyMemory(text2, source, target), detected: null });
+      return;
+    }
     let upstream;
     try {
       upstream = await fetch(`${env.libreTranslateUrl.replace(/\/$/, "")}/translate`, {
