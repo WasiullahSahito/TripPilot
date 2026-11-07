@@ -10,6 +10,7 @@ export const ROUTES = {
     dashboard: '/app',
     visa: '/app/visa',
     flights: '/app/flights',
+    trains: '/app/trains',
     hotels: '/app/hotels',
     insurance: '/app/insurance',
     map: '/app/map',

@@ -43,8 +43,8 @@ export default function ExtrasPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-8">
       <header>
-        <h1 className="text-2xl font-semibold">Trip extras</h1>
-        <p className="mt-1 text-sm text-ink-soft">Plan your days and find tickets, data, cars and flight compensation.</p>
+        <h1 className="text-2xl font-semibold">Tourist plan</h1>
+        <p className="mt-1 text-sm text-ink-soft">Build a day-by-day plan for your trip, then find tickets, data and cars.</p>
       </header>
       <PlannerCard />
       <Partners />

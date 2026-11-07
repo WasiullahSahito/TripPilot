@@ -13,6 +13,7 @@ const OnboardingPage = lazy(() => import('@/features/onboarding/onboarding-page'
 const VisaStartPage = lazy(() => import('@/features/visa/visa-start-page'))
 const VisaWorkspacePage = lazy(() => import('@/features/visa/visa-workspace-page'))
 const FlightsPage = lazy(() => import('@/features/flights/flights-page'))
+const TrainsPage = lazy(() => import('@/features/trains/trains-page'))
 const HotelsPage = lazy(() => import('@/features/hotels/hotels-page'))
 const BookingsPage = lazy(() => import('@/features/bookings/bookings-page'))
 const InsurancePage = lazy(() => import('@/features/insurance/insurance-page'))
@@ -78,6 +79,7 @@ export const router = createBrowserRouter([
       { path: 'visa', element: lazyPage(<VisaStartPage />) },
       { path: 'visa/:destinationId/:categoryId', element: lazyPage(<VisaWorkspacePage />) },
       { path: 'flights', element: lazyPage(<FlightsPage />) },
+      { path: 'trains', element: lazyPage(<TrainsPage />) },
       { path: 'hotels', element: lazyPage(<HotelsPage />) },
       { path: 'insurance', element: lazyPage(<InsurancePage />) },
       { path: 'map', element: lazyPage(<MapsPage />) },

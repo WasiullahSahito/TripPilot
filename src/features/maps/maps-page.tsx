@@ -1,7 +1,7 @@
-import { List, Map as MapIcon, Navigation, Search } from 'lucide-react'
+import { ExternalLink, List, Map as MapIcon, Navigation, Search } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Field, Input, Select } from '@/components/ui/field'
 import { cn } from '@/lib/utils'
@@ -174,9 +174,12 @@ export default function MapsPage() {
                 <h2 className="mt-2 font-semibold">{selected.title}</h2>
                 <p className="mt-1 text-sm text-ink-soft">{selected.detail}</p>
                 <p className="mt-2 text-xs text-ink-soft">{formatKm(haversineKm(center, selected))} from map centre</p>
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" onClick={() => setFromId(selected.id)}>Directions from here</Button>
                   <Button size="sm" variant="outline" onClick={() => setToId(selected.id)}>To here</Button>
+                  <a className={buttonVariants({ variant: 'outline', size: 'sm' })} target="_blank" rel="noopener noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${selected.lat},${selected.lng}`}>
+                    Google Maps<ExternalLink className="size-3.5" aria-hidden /><span className="sr-only">(opens in a new tab)</span>
+                  </a>
                 </div>
               </>
             ) : <p className="text-sm text-ink-soft">Select a marker or list item to see details.</p>}
@@ -201,6 +204,11 @@ export default function MapsPage() {
               {pair && routing && <p className="text-ink-soft">Finding route…</p>}
               {pair && route && <p>Driving: <strong>{formatKm(route.distanceKm)}</strong>, about <strong>{route.durationMin} min</strong></p>}
               {pair && !route && !routing && <p>Straight-line distance: <strong>{formatKm(haversineKm(pair.from, pair.to))}</strong></p>}
+              {pair && (
+                <a className={buttonVariants({ variant: 'outline', size: 'sm' }) + ' mt-2'} target="_blank" rel="noopener noreferrer" href={`https://www.google.com/maps/dir/?api=1&origin=${pair.from.lat},${pair.from.lng}&destination=${pair.to.lat},${pair.to.lng}&travelmode=transit`}>
+                  Open route in Google Maps<ExternalLink className="size-3.5" aria-hidden /><span className="sr-only">(opens in a new tab)</span>
+                </a>
+              )}
             </div>
             {routeMsg && <p role="alert" className="mt-2 text-xs text-red-700">{routeMsg}</p>}
           </Card>

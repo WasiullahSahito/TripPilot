@@ -1,4 +1,4 @@
-import { CalendarCheck, FileText, Hotel, Plane, ShieldCheck, Stamp, Trash2, type LucideIcon } from 'lucide-react'
+import { CalendarCheck, Compass, FileText, Hotel, Languages, Map, Plane, ShieldCheck, Stamp, Train, Trash2, type LucideIcon } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Badge } from '@/components/ui/badge'
@@ -19,6 +19,13 @@ import type { Trip, TripStatus } from '@/types/api'
 import { TripForm } from './trip-form'
 import { daysUntil } from './trip-schema'
 import { useTrips } from './use-trips'
+
+const mainTasks: { label: string; description: string; to: string; icon: LucideIcon }[] = [
+  { label: 'Book trains', description: 'Compare times and prices', to: ROUTES.app.trains, icon: Train },
+  { label: 'Maps and directions', description: 'Search any city, find places', to: ROUTES.app.map, icon: Map },
+  { label: 'Translate a document', description: 'Photo or PDF to your language', to: ROUTES.app.translate, icon: Languages },
+  { label: 'Make a tourist plan', description: 'Day-by-day itinerary as PDF', to: ROUTES.app.extras, icon: Compass },
+]
 
 const quickActions: { label: string; description: string; to: string; icon: LucideIcon }[] = [
   { label: 'Apply for a visa', description: 'Tourism, visiting or work', to: ROUTES.app.visa, icon: Stamp },
@@ -77,16 +84,22 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
-      <header className="overflow-hidden rounded-3xl bg-gradient-to-br from-navy-950 via-navy-900 to-accent-900 p-6 text-white shadow-lg sm:p-9">
-        <p className="text-sm font-medium text-accent-200">Your travel workspace</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Welcome, {user?.name.split(' ')[0]}</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/75">
-          Keep visa preparation, travel plans and documents together. Search results appear only when a connected provider returns real data.
-        </p>
-        <Button asChild variant="accent" className="mt-5">
-          <Link to={ROUTES.app.visa}>Start a visa application</Link>
-        </Button>
+      <header>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Welcome, {user?.name.split(' ')[0]}</h1>
+        <p className="mt-1 text-sm text-ink-soft">What would you like to do?</p>
       </header>
+
+      <nav aria-label="Main tasks" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {mainTasks.map(({ label, description, to, icon: Icon }) => (
+          <Link key={label} to={to} className="group flex min-h-36 flex-col justify-between rounded-2xl bg-gradient-to-br from-navy-900 to-accent-900 p-4 text-white shadow-sm transition active:scale-[0.98] hover:shadow-lg">
+            <Icon className="size-8 text-accent-200" aria-hidden />
+            <span>
+              <span className="block text-base font-semibold leading-tight">{label}</span>
+              <span className="mt-1 block text-xs text-white/75">{description}</span>
+            </span>
+          </Link>
+        ))}
+      </nav>
 
       {user && !user.emailVerified && (
         <p role="note" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -95,7 +108,8 @@ export default function DashboardPage() {
       )}
       {dataError && <p role="alert" className="text-sm text-red-700">{dataError}</p>}
 
-      <nav aria-label="Quick actions" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <h2 className="-mb-3 text-sm font-semibold text-ink-soft">Visa and bookings</h2>
+      <nav aria-label="Visa and bookings" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {quickActions.map(({ label, description, to, icon: Icon }) => (
           <Link key={label} to={to} className="group flex items-center gap-4 rounded-2xl border border-line bg-surface p-4 transition hover:-translate-y-0.5 hover:border-accent-300 hover:shadow-md">
             <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent-50 text-accent-700 transition group-hover:bg-accent-100">

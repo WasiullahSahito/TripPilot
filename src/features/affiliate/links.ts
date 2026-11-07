@@ -3,7 +3,7 @@
  * no hidden redirects and no data about the user is sent to partners beyond the search terms in the URL.
  *
  * To earn commission, set VITE_AFF_<PARTNER>_URL to the tracked link template from the partner's dashboard
- * (Travelpayouts, Agoda, Booking.com/Stay22, Viator, GetYourGuide, Airalo, AirHelp, Discover Cars, Ekta).
+ * (Travelpayouts, Agoda, Booking.com/Stay22, Viator, GetYourGuide, Airalo, AirHelp, Discover Cars, Ekta, Trainline, Omio).
  * Placeholders: {origin} {destination} {depart} {return} {departYYMMDD} {returnYYMMDD} {adults}
  *               {city} {checkin} {checkout} {rooms}. Values are URL-encoded.
  * Without a template, a plain (untracked) public link is used.
@@ -14,6 +14,7 @@ export type PartnerId =
   | 'agoda' | 'booking' | 'stay22'
   | 'discovercars' | 'ekta'
   | 'viator' | 'getyourguide' | 'airalo' | 'airhelp'
+  | 'trainline' | 'omio' | 'rome2rio'
 
 export interface PartnerInfo {
   id: PartnerId
@@ -35,6 +36,9 @@ export const partners: Record<PartnerId, PartnerInfo> = {
   getyourguide: { id: 'getyourguide', name: 'GetYourGuide', fallback: 'https://www.getyourguide.com/s/?q={city}' },
   airalo: { id: 'airalo', name: 'Airalo', fallback: 'https://www.airalo.com/' },
   airhelp: { id: 'airhelp', name: 'AirHelp', fallback: 'https://www.airhelp.com/en/' },
+  trainline: { id: 'trainline', name: 'Trainline', fallback: 'https://www.thetrainline.com/' },
+  omio: { id: 'omio', name: 'Omio', fallback: 'https://www.omio.com/' },
+  rome2rio: { id: 'rome2rio', name: 'Rome2Rio', fallback: 'https://www.rome2rio.com/map/{origin}/{destination}' },
 }
 
 export interface LinkParams {
