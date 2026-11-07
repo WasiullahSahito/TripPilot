@@ -99,7 +99,7 @@ export default function TranslatePage() {
 
         <label className="block text-xs font-medium text-ink-soft">
           Text to translate (you can edit it)
-          <textarea value={text} onChange={(e) => { setText(e.target.value); setResult(null) }} maxLength={5000} rows={7}
+          <textarea dir="auto" value={text} onChange={(e) => { setText(e.target.value); setResult(null) }} maxLength={5000} rows={7}
             className="mt-1.5 w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink" />
         </label>
         <p className="text-xs text-ink-soft">{text.length} / 5000 characters</p>
@@ -115,7 +115,7 @@ export default function TranslatePage() {
         {result !== null && (
           <div aria-live="polite">
             <h2 className="text-sm font-semibold">Translation</h2>
-            <p className="mt-2 whitespace-pre-wrap rounded-xl border border-line bg-muted/40 p-4 text-sm">{result}</p>
+            <p dir="auto" className="mt-2 whitespace-pre-wrap rounded-xl border border-line bg-muted/40 p-4 text-sm">{result}</p>
             <p className="mt-2 text-xs text-ink-soft">Machine translation can be wrong. Use a certified translator for anything an embassy requires to be officially translated.</p>
           </div>
         )}
