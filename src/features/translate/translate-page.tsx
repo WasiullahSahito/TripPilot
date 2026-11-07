@@ -6,6 +6,7 @@ import { Field, Select } from '@/components/ui/field'
 import { looksLikeMrz } from '@/features/ocr/mrz'
 import { OCR_LANGUAGES, recognize, validateImage } from '@/features/ocr/ocr'
 import { api, ApiError } from '@/lib/api'
+import { MAX_PDF_PAGES, readPdf, validatePdf } from './pdf-read'
 
 const TARGETS = [
   { code: 'en', label: 'English' }, { code: 'ar', label: 'Arabic' }, { code: 'fr', label: 'French' }, { code: 'es', label: 'Spanish' },
@@ -32,19 +33,29 @@ export default function TranslatePage() {
 
   const read = async (f: File) => {
     setError(null)
-    const problem = validateImage(f)
+    const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name)
+    const problem = isPdf ? validatePdf(f) : validateImage(f)
     if (problem) return setError(problem)
     setReading(true)
     setProgress(0)
     abort.current = new AbortController()
     try {
-      const out = await recognize(f, { lang: ocrLang, signal: abort.current.signal, onProgress: (p) => setProgress(p) })
+      let out: string
+      let note: string | null = null
+      if (isPdf) {
+        const r = await readPdf(f, { ocrLang, signal: abort.current.signal, onProgress: (p) => setProgress(p) })
+        out = r.text
+        if (r.truncated) note = `Only the first ${MAX_PDF_PAGES} pages were read.`
+      } else {
+        out = await recognize(f, { lang: ocrLang, signal: abort.current.signal, onProgress: (p) => setProgress(p) })
+      }
       setText(out.trim())
       setSource(OCR_TO_ISO[ocrLang] ?? 'auto')
       setResult(null)
-      if (!out.trim()) setError('No text was found in that image.')
+      if (!out.trim()) setError(isPdf ? 'No text was found in that PDF.' : 'No text was found in that image.')
+      else if (note) setError(note)
     } catch {
-      setError('Reading the image failed. You can paste the text instead.')
+      setError(isPdf ? 'Reading the PDF failed. You can paste the text instead.' : 'Reading the image failed. You can paste the text instead.')
     } finally {
       setReading(false)
     }
@@ -68,22 +79,22 @@ export default function TranslatePage() {
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
       <header>
         <h1 className="text-2xl font-semibold">Document translation</h1>
-        <p className="mt-1 text-sm text-ink-soft">Read text from a photo of a document in your browser, then translate it.</p>
+        <p className="mt-1 text-sm text-ink-soft">Read text from a photo or PDF of a document in your browser, then translate it.</p>
       </header>
 
       <Card className="space-y-4 p-5">
         <p className="flex items-start gap-2 text-xs text-ink-soft">
           <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
-          Photos are read on your device and are never uploaded. Only the text you see below is sent to the translation server when you press Translate.
+          Photos and PDFs are read on your device and are never uploaded. Only the text you see below is sent to the translation server when you press Translate.
           Don’t translate passport numbers or other identifiers — passport data is blocked automatically.
         </p>
 
         <div className="flex flex-wrap items-end gap-3">
-          <Field label="Language in the photo" htmlFor="t-ocr">
+          <Field label="Language in the document" htmlFor="t-ocr">
             <Select id="t-ocr" value={ocrLang} onChange={(e) => setOcrLang(e.target.value)}>{OCR_LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}</Select>
           </Field>
-          <input ref={file} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" aria-label="Document photo" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void read(f) }} />
-          <Button variant="outline" disabled={reading} onClick={() => file.current?.click()}><ScanText className="size-4" aria-hidden />{reading ? `Reading… ${Math.round(progress * 100)}%` : 'Read text from photo'}</Button>
+          <input ref={file} type="file" accept="image/png,image/jpeg,image/webp,application/pdf,.pdf" className="sr-only" aria-label="Document photo or PDF" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void read(f) }} />
+          <Button variant="outline" disabled={reading} onClick={() => file.current?.click()}><ScanText className="size-4" aria-hidden />{reading ? `Reading… ${Math.round(progress * 100)}%` : 'Read text from photo or PDF'}</Button>
         </div>
 
         <label className="block text-xs font-medium text-ink-soft">
